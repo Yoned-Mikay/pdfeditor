@@ -600,9 +600,14 @@
                     downloadSection.style.display = 'block';
                 } catch (error) {
                     console.error('Error loading PDF:', error);
-                    alert('Error loading PDF. Please try another file.');
+                    alert('Error loading PDF. Please try another file. Error: ' + error.message);
                     loading.style.display = 'none';
                 }
+            };
+            
+            reader.onerror = function() {
+                alert('Error reading file. Please try another PDF.');
+                loading.style.display = 'none';
             };
             
             reader.readAsArrayBuffer(file);
@@ -612,61 +617,73 @@
         async function renderPage(num) {
             pageRendering = true;
             
-            // Get page
-            const page = await pdfDoc.getPage(num);
-            
-            // Prepare canvas
-            const viewport = page.getViewport({ scale: scale });
-            pdfCanvas.height = viewport.height;
-            pdfCanvas.width = viewport.width;
-            
-            // Render PDF page
-            const renderContext = {
-                canvasContext: pdfCanvas.getContext('2d'),
-                viewport: viewport
-            };
-            
-            const renderTask = page.render(renderContext);
-            
-            // Wait for rendering to finish
-            await renderTask.promise;
-            
-            // Clear existing text areas
-            clearTextAreas();
-            
-            // Extract text content for editing
-            const textContent = await page.getTextContent();
-            
-            // Create editable text areas for each text item
-            createTextAreas(textContent, viewport);
-            
-            pageRendering = false;
-            pageNumElem.textContent = num;
+            try {
+                // Get page
+                const page = await pdfDoc.getPage(num);
+                
+                // Prepare canvas using PDF.js
+                const viewport = page.getViewport({ scale: scale });
+                pdfCanvas.height = viewport.height;
+                pdfCanvas.width = viewport.width;
+                
+                // Render PDF page
+                const renderContext = {
+                    canvasContext: pdfCanvas.getContext('2d'),
+                    viewport: viewport
+                };
+                
+                const renderTask = page.render(renderContext);
+                
+                // Wait for rendering to finish
+                await renderTask.promise;
+                
+                // Clear existing text areas
+                clearTextAreas();
+                
+                // Extract text content for editing
+                const textContent = await page.getTextContent();
+                
+                // Create editable text areas for each text item
+                createTextAreas(textContent, viewport);
+                
+                pageRendering = false;
+                pageNumElem.textContent = num;
+                
+                // If there's a pending page navigation, render it now
+                if (pageNumPending !== null) {
+                    renderPage(pageNumPending);
+                    pageNumPending = null;
+                }
+            } catch (error) {
+                console.error('Error rendering page:', error);
+                alert('Error rendering PDF page: ' + error.message);
+                pageRendering = false;
+            }
         }
         
         // Create editable text areas from text content
         function createTextAreas(textContent, viewport) {
             textContent.items.forEach((item) => {
-                const transform = PDFLib.identityMatrix;
-                const transformed = PDFLib.applyTransform(item.transform, transform);
-                
                 // Calculate position on the canvas
-                const x = transformed[4];
-                const y = viewport.height - transformed[5];
+                // PDF.js provides transform matrix, we need to extract x and y
+                const tx = item.transform[4];
+                const ty = item.transform[5];
                 
                 // Create text edit overlay
                 const textArea = document.createElement('div');
                 textArea.className = 'text-edit-overlay';
-                textArea.style.left = x + 'px';
-                textArea.style.top = y + 'px';
-                textArea.style.fontSize = (item.height * 1.2) + 'px';
-                textArea.style.fontFamily = item.fontName;
+                textArea.style.left = tx + 'px';
+                textArea.style.top = (viewport.height - ty) + 'px';
+                textArea.style.width = (item.width * 1.2) + 'px';
+                textArea.style.height = (item.height * 1.5) + 'px';
                 
                 // Create input field
                 const input = document.createElement('textarea');
                 input.className = 'text-edit-input';
                 input.value = item.str;
-                input.style.color = 'rgba(0, 0, 0, 0.5)';
+                input.style.color = 'rgba(0, 0, 0, 0.7)';
+                input.style.fontSize = (item.height * 1.2) + 'px';
+                input.style.fontFamily = item.fontName;
                 
                 textArea.appendChild(input);
                 canvasContainer.appendChild(textArea);
@@ -674,10 +691,11 @@
                 // Store reference
                 textAreas.push({
                     element: textArea,
-                    originalX: x,
-                    originalY: y,
+                    originalX: tx,
+                    originalY: ty,
                     originalText: item.str,
-                    transform: item.transform
+                    width: item.width,
+                    height: item.height
                 });
             });
         }
@@ -685,7 +703,7 @@
         // Clear all text areas
         function clearTextAreas() {
             textAreas.forEach(textArea => {
-                if (textArea.element.parentNode) {
+                if (textArea.element && textArea.element.parentNode) {
                     textArea.element.parentNode.removeChild(textArea.element);
                 }
             });
@@ -799,7 +817,7 @@
                 loading.style.display = 'none';
             } catch (error) {
                 console.error('Error saving PDF:', error);
-                alert('Error saving PDF. Please try again.');
+                alert('Error saving PDF. Please try again. Error: ' + error.message);
                 loading.style.display = 'none';
             }
         }
@@ -813,6 +831,9 @@
                     PDFLib.PDFDocument.load(pdfBytes).then(doc => {
                         pdfDocLib = doc;
                         renderPage(currentPage);
+                    }).catch(error => {
+                        console.error('Error resetting PDF:', error);
+                        alert('Error resetting PDF: ' + error.message);
                     });
                 }
             }
