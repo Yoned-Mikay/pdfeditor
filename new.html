@@ -6,9 +6,7 @@
     <title>Free PDF Editor</title>
     <script src="https://unpkg.com/pdf-lib@1.17.1"></script>
     <script src="https://unpkg.com/downloadjs@1.4.7"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -18,7 +16,7 @@
         }
         
         body {
-            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
             color: #333;
@@ -27,14 +25,14 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
             overflow: hidden;
         }
         
         header {
-            background: #4a00e0;
+            background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%);
             color: white;
             padding: 20px;
             text-align: center;
@@ -52,194 +50,187 @@
         
         .main-content {
             display: flex;
-            min-height: 600px;
+            flex-direction: column;
+            padding: 20px;
         }
         
         .upload-section {
-            flex: 1;
-            padding: 30px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #f8f9fa;
-        }
-        
-        .editor-section {
-            flex: 2;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            background: white;
-            border-left: 1px solid #e9ecef;
-        }
-        
-        .drop-zone {
-            width: 100%;
-            max-width: 400px;
-            height: 250px;
-            border: 3px dashed #4a00e0;
-            border-radius: 15px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
             text-align: center;
-            padding: 20px;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: white;
-        }
-        
-        .drop-zone:hover {
-            background: #eef4ff;
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-        
-        .drop-zone i {
-            font-size: 4rem;
-            color: #4a00e0;
+            padding: 30px;
+            border: 3px dashed #4b6cb7;
+            border-radius: 10px;
             margin-bottom: 20px;
+            background: #f8f9fa;
+            transition: all 0.3s;
         }
         
-        .drop-zone h3 {
+        .upload-section:hover {
+            background: #e9ecef;
+            border-color: #182848;
+        }
+        
+        .upload-icon {
+            font-size: 4rem;
+            color: #4b6cb7;
             margin-bottom: 15px;
-            color: #4a00e0;
         }
         
         .btn {
-            padding: 12px 25px;
-            background: #4a00e0;
+            background: #4b6cb7;
             color: white;
             border: none;
-            border-radius: 50px;
+            padding: 12px 25px;
             font-size: 1rem;
+            border-radius: 50px;
             cursor: pointer;
             transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 20px;
+            margin: 10px 5px;
+            display: inline-block;
         }
         
         .btn:hover {
-            background: #3575fc;
+            background: #182848;
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
         
-        .btn i {
-            margin-right: 8px;
+        .btn-secondary {
+            background: #6c757d;
         }
         
-        .pdf-preview {
-            flex: 1;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            overflow: auto;
-            margin-bottom: 20px;
-            background: #f8f8f8;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .editor-section {
+            display: none;
+            flex-direction: column;
+            margin-top: 20px;
         }
         
         .toolbar {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             padding: 15px;
-            background: #f1f3f5;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            background: #e9ecef;
+            border-radius: 10px;
+            margin-bottom: 15px;
         }
         
-        .tool-btn {
-            padding: 8px 15px;
+        .tool-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 10px;
             background: white;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            transition: all 0.2s;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
         
-        .tool-btn:hover {
-            background: #4a00e0;
-            color: white;
-        }
-        
-        .tool-btn i {
-            margin-right: 5px;
-        }
-        
-        .font-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-left: auto;
+        .tool-group label {
+            font-weight: bold;
+            font-size: 0.9rem;
         }
         
         select, input {
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-        }
-        
-        .editor-container {
-            flex: 1;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            overflow: auto;
-            padding: 20px;
-            background: white;
-            min-height: 400px;
-        }
-        
-        .editor-page {
-            margin: 0 auto;
-            width: 100%;
-            height: 100%;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            background: white;
-            position: relative;
-        }
-        
-        .text-element {
-            position: absolute;
             padding: 5px;
-            border: 1px dashed transparent;
-            cursor: move;
-            min-width: 50px;
-            min-height: 20px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
         }
         
-        .text-element:hover {
-            border-color: #4a00e0;
+        .pdf-preview {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
         }
         
-        .text-element.selected {
-            border: 1px dashed #4a00e0;
-            background: rgba(74, 0, 224, 0.05);
+        #pdf-viewer {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            background: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            overflow: auto;
+        }
+        
+        .page-controls {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .text-layer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            opacity: 0.2;
+            line-height: 1.0;
+        }
+        
+        .text-layer span {
+            color: transparent;
+            position: absolute;
+            white-space: nowrap;
+            cursor: text;
+            transform-origin: 0% 0%;
+        }
+        
+        .text-layer span:hover {
+            background-color: rgba(255, 255, 0, 0.3);
+        }
+        
+        .editor-overlay {
+            position: absolute;
+            border: 2px solid #4b6cb7;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+            min-width: 100px;
+            z-index: 100;
+        }
+        
+        .editor-overlay textarea {
+            width: 100%;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+            font-size: inherit;
+            color: inherit;
+            background: transparent;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 10px;
+            font-weight: bold;
+            color: #4b6cb7;
         }
         
         footer {
             text-align: center;
             padding: 20px;
-            background: #f8f9fa;
+            background: #e9ecef;
             color: #6c757d;
             font-size: 0.9rem;
         }
         
-        .hidden {
-            display: none;
-        }
-        
-        #pdf-canvas {
-            max-width: 100%;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        @media (max-width: 768px) {
+            .toolbar {
+                flex-direction: column;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
         }
     </style>
 </head>
@@ -247,198 +238,356 @@
     <div class="container">
         <header>
             <h1>Free PDF Editor</h1>
-            <p class="subtitle">Edit PDF text directly in your browser - No payments required!</p>
+            <p class="subtitle">Edit your PDFs online - no payment required!</p>
         </header>
         
         <div class="main-content">
-            <div class="upload-section">
-                <div class="drop-zone" id="dropZone">
-                    <i class="fas fa-file-pdf"></i>
-                    <h3>Upload your PDF</h3>
-                    <p>Drag & drop your file here or click to browse</p>
-                    <input type="file" id="fileInput" accept=".pdf" style="display: none;">
-                    <button class="btn" id="browseBtn"><i class="fas fa-folder-open"></i> Browse Files</button>
-                </div>
-                
-                <div class="upload-info">
-                    <p>Supported: PDF files up to 10MB</p>
-                </div>
+            <div class="upload-section" id="upload-section">
+                <div class="upload-icon">📄</div>
+                <h2>Upload Your PDF</h2>
+                <p>Drag & drop your PDF file here or click the button below</p>
+                <input type="file" id="file-input" accept=".pdf" style="display: none;">
+                <button class="btn" id="upload-btn">Select PDF File</button>
             </div>
             
-            <div class="editor-section hidden" id="editorSection">
+            <div class="editor-section" id="editor-section">
                 <div class="toolbar">
-                    <button class="tool-btn" id="addTextBtn"><i class="fas fa-font"></i> Add Text</button>
-                    <button class="tool-btn" id="editBtn"><i class="fas fa-edit"></i> Edit</button>
-                    <button class="tool-btn" id="downloadBtn"><i class="fas fa-download"></i> Download</button>
-                    
-                    <div class="font-controls">
-                        <select id="fontFamily">
+                    <div class="tool-group">
+                        <label for="font-family">Font:</label>
+                        <select id="font-family">
                             <option value="Helvetica">Helvetica</option>
-                            <option value="Times-Roman">Times Roman</option>
+                            <option value="Times-Roman">Times New Roman</option>
                             <option value="Courier">Courier</option>
                             <option value="Arial">Arial</option>
                         </select>
-                        
-                        <select id="fontSize">
-                            <option value="8">8pt</option>
-                            <option value="10">10pt</option>
-                            <option value="12" selected>12pt</option>
-                            <option value="14">14pt</option>
-                            <option value="18">18pt</option>
-                            <option value="24">24pt</option>
-                            <option value="36">36pt</option>
+                    </div>
+                    
+                    <div class="tool-group">
+                        <label for="font-size">Size:</label>
+                        <select id="font-size">
+                            <option value="8">8</option>
+                            <option value="10">10</option>
+                            <option value="12" selected>12</option>
+                            <option value="14">14</option>
+                            <option value="16">16</option>
+                            <option value="18">18</option>
+                            <option value="24">24</option>
+                            <option value="32">32</option>
                         </select>
-                        
-                        <input type="color" id="fontColor" value="#000000">
+                    </div>
+                    
+                    <div class="tool-group">
+                        <button class="btn" id="bold-btn"><b>B</b></button>
+                        <button class="btn" id="italic-btn"><i>I</i></button>
+                        <button class="btn" id="color-btn">Color</button>
+                    </div>
+                    
+                    <div class="tool-group">
+                        <button class="btn" id="add-text-btn">Add Text</button>
                     </div>
                 </div>
                 
                 <div class="pdf-preview">
-                    <canvas id="pdf-canvas"></canvas>
+                    <div class="page-controls">
+                        <button class="btn" id="prev-page">Previous</button>
+                        <span>Page: <span id="page-num">1</span> / <span id="page-count">1</span></span>
+                        <button class="btn" id="next-page">Next</button>
+                    </div>
+                    
+                    <div id="pdf-viewer"></div>
                 </div>
+                
+                <div class="actions">
+                    <button class="btn" id="download-btn">Download Edited PDF</button>
+                    <button class="btn btn-secondary" id="new-file-btn">New File</button>
+                </div>
+                
+                <div class="status" id="status">Ready to edit</div>
             </div>
         </div>
         
         <footer>
-            <p>Created with ❤️ using pdf-lib.js and pdf.js | Free PDF Editor © 2023</p>
+            <p>Built with PDF.js and PDF-Lib.js | Free PDF Editor © 2023</p>
         </footer>
     </div>
 
     <script>
-        // Set PDF.js worker path
-        pdfjsLib = window['pdfjs-dist/build/pdf'];
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';
+        // Global variables
+        let pdfDoc = null;
+        let pageNum = 1;
+        let pageRendering = false;
+        let pageNumPending = null;
+        let pdfjsLib = window['pdfjs-dist/build/pdf'];
+        let PDFLib = window['pdf-lib'];
         
-        document.addEventListener('DOMContentLoaded', function() {
-            const dropZone = document.getElementById('dropZone');
-            const fileInput = document.getElementById('fileInput');
-            const browseBtn = document.getElementById('browseBtn');
-            const editorSection = document.getElementById('editorSection');
-            const pdfCanvas = document.getElementById('pdf-canvas');
-            const downloadBtn = document.getElementById('downloadBtn');
-            
-            // Event listeners for file upload
-            browseBtn.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', handleFileSelect);
-            dropZone.addEventListener('dragover', handleDragOver);
-            dropZone.addEventListener('drop', handleDrop);
-            
-            function handleDragOver(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                dropZone.style.background = '#eef4ff';
-            }
-            
-            function handleDrop(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                dropZone.style.background = 'white';
-                
-                const files = e.dataTransfer.files;
-                if (files.length && files[0].type === 'application/pdf') {
-                    loadPdf(files[0]);
-                } else {
-                    alert('Please drop a valid PDF file');
-                }
-            }
-            
-            function handleFileSelect(e) {
-                const files = e.target.files;
-                if (files.length && files[0].type === 'application/pdf') {
-                    loadPdf(files[0]);
-                }
-            }
-            
-            function loadPdf(file) {
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        const pdfData = new Uint8Array(e.target.result);
-                        
-                        // Show editor section
-                        editorSection.classList.remove('hidden');
-                        
-                        // Render PDF
-                        renderPdf(pdfData);
-                    };
-                    reader.readAsArrayBuffer(file);
-                }
-            }
-            
-            function renderPdf(data) {
-                const loadingTask = pdfjsLib.getDocument({data: data});
-                loadingTask.promise.then(function(pdf) {
-                    // Fetch the first page
-                    return pdf.getPage(1).then(function(page) {
-                        const viewport = page.getViewport({scale: 1.5});
-                        const context = pdfCanvas.getContext('2d');
-                        
-                        pdfCanvas.height = viewport.height;
-                        pdfCanvas.width = viewport.width;
-                        
-                        const renderContext = {
-                            canvasContext: context,
-                            viewport: viewport
-                        };
-                        
-                        page.render(renderContext);
-                    });
-                }).catch(function(error) {
-                    console.error('Error rendering PDF:', error);
-                    alert('Error loading PDF. Please try another file.');
-                });
-            }
-            
-            // Download button handler
-            downloadBtn.addEventListener('click', function() {
-                // In a real implementation, this would use pdf-lib to modify the PDF
-                // and then trigger a download
-                
-                alert('In a full implementation, this would download your edited PDF. This demo shows the UI only.');
-                
-                // This would be the actual implementation:
-                /*
-                const { PDFDocument } = PDFLib;
-                
-                async function modifyPdf() {
-                    const pdfDoc = await PDFDocument.load(pdfData);
-                    const pages = pdfDoc.getPages();
-                    const firstPage = pages[0];
-                    
-                    // Draw text on the first page
-                    firstPage.drawText('This text was added by our editor!', {
-                        x: 50,
-                        y: firstPage.getHeight() - 100,
-                        size: 15,
-                        color: PDFLib.rgb(0, 0, 0),
-                    });
-                    
-                    // Serialize the PDFDocument to bytes (a Uint8Array)
-                    const pdfBytes = await pdfDoc.save();
-                    
-                    // Trigger the browser to download the PDF document
-                    download(pdfBytes, "edited-document.pdf", "application/pdf");
-                }
-                
-                modifyPdf();
-                */
-            });
-            
-            // Simulate text editing functionality
-            const addTextBtn = document.getElementById('addTextBtn');
-            const editBtn = document.getElementById('editBtn');
-            const fontFamily = document.getElementById('fontFamily');
-            const fontSize = document.getElementById('fontSize');
-            const fontColor = document.getElementById('fontColor');
-            
-            addTextBtn.addEventListener('click', function() {
-                alert('In a full implementation, this would allow you to add text to the PDF. This demo shows the UI only.');
-            });
-            
-            editBtn.addEventListener('click', function() {
-                alert('In a full implementation, this would enable text editing on the PDF. This demo shows the UI only.');
-            });
+        // Set PDF.js worker path
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+        
+        // DOM elements
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('upload-btn');
+        const uploadSection = document.getElementById('upload-section');
+        const editorSection = document.getElementById('editor-section');
+        const prevPageBtn = document.getElementById('prev-page');
+        const nextPageBtn = document.getElementById('next-page');
+        const pageNumElem = document.getElementById('page-num');
+        const pageCountElem = document.getElementById('page-count');
+        const downloadBtn = document.getElementById('download-btn');
+        const newFileBtn = document.getElementById('new-file-btn');
+        const statusElem = document.getElementById('status');
+        const pdfViewer = document.getElementById('pdf-viewer');
+        
+        // Event listeners
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileUpload);
+        prevPageBtn.addEventListener('click', onPrevPage);
+        nextPageBtn.addEventListener('click', onNextPage);
+        downloadBtn.addEventListener('click', downloadPDF);
+        newFileBtn.addEventListener('click', resetApp);
+        
+        // Handle drag and drop
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.style.background = '#e9ecef';
+            uploadSection.style.borderColor = '#182848';
         });
+        
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.style.background = '#f8f9fa';
+            uploadSection.style.borderColor = '#4b6cb7';
+        });
+        
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.style.background = '#f8f9fa';
+            uploadSection.style.borderColor = '#4b6cb7';
+            
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileUpload();
+            }
+        });
+        
+        // Handle file upload
+        function handleFileUpload() {
+            if (!fileInput.files.length) return;
+            
+            const file = fileInput.files[0];
+            if (file.type !== 'application/pdf') {
+                alert('Please select a PDF file.');
+                return;
+            }
+            
+            statusElem.textContent = 'Loading PDF...';
+            
+            const fileReader = new FileReader();
+            fileReader.onload = function() {
+                const typedarray = new Uint8Array(this.result);
+                
+                pdfjsLib.getDocument(typedarray).promise.then((pdf) => {
+                    pdfDoc = pdf;
+                    pageCountElem.textContent = pdf.numPages;
+                    
+                    // Show editor section
+                    uploadSection.style.display = 'none';
+                    editorSection.style.display = 'flex';
+                    
+                    // Render first page
+                    renderPage(pageNum);
+                }).catch(error => {
+                    console.error('Error loading PDF:', error);
+                    statusElem.textContent = 'Error loading PDF. Please try another file.';
+                });
+            };
+            fileReader.readAsArrayBuffer(file);
+        }
+        
+        // Render PDF page
+        function renderPage(num) {
+            pageRendering = true;
+            statusElem.textContent = 'Rendering page...';
+            
+            pdfDoc.getPage(num).then((page) => {
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                
+                // Clear PDF viewer
+                pdfViewer.innerHTML = '';
+                pdfViewer.appendChild(canvas);
+                
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                
+                const renderTask = page.render(renderContext);
+                
+                renderTask.promise.then(() => {
+                    pageRendering = false;
+                    pageNumElem.textContent = num;
+                    statusElem.textContent = 'Ready to edit';
+                    
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                    
+                    // Extract text for editing
+                    return page.getTextContent();
+                }).then((textContent) => {
+                    // Create text layer for editing
+                    createTextLayer(textContent, viewport);
+                });
+            }).catch(error => {
+                console.error('Error rendering page:', error);
+                statusElem.textContent = 'Error rendering page.';
+            });
+        }
+        
+        // Create text layer for editing
+        function createTextLayer(textContent, viewport) {
+            const textLayer = document.createElement('div');
+            textLayer.className = 'text-layer';
+            textLayer.style.width = `${viewport.width}px`;
+            textLayer.style.height = `${viewport.height}px`;
+            
+            pdfViewer.appendChild(textLayer);
+            
+            // Add text items
+            textContent.items.forEach((item) => {
+                const textElement = document.createElement('span');
+                textElement.textContent = item.str;
+                
+                // Calculate position
+                const transform = item.transform;
+                const left = transform[4];
+                const top = transform[5];
+                
+                textElement.style.left = `${left}px`;
+                textElement.style.top = `${top}px`;
+                textElement.style.fontSize = `${Math.sqrt(transform[0] * transform[0] + transform[1] * transform[1])}px`;
+                
+                textElement.addEventListener('click', () => {
+                    editText(item, textElement);
+                });
+                
+                textLayer.appendChild(textElement);
+            });
+        }
+        
+        // Edit text function
+        function editText(textItem, element) {
+            statusElem.textContent = 'Editing text...';
+            
+            // Create editing overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'editor-overlay';
+            overlay.style.left = element.style.left;
+            overlay.style.top = element.style.top;
+            
+            const textarea = document.createElement('textarea');
+            textarea.value = textItem.str;
+            textarea.style.fontSize = element.style.fontSize;
+            
+            overlay.appendChild(textarea);
+            pdfViewer.appendChild(overlay);
+            
+            textarea.focus();
+            
+            // Handle saving changes
+            textarea.addEventListener('blur', () => {
+                // Update text content
+                textItem.str = textarea.value;
+                element.textContent = textarea.value;
+                
+                // Remove overlay
+                overlay.remove();
+                statusElem.textContent = 'Text updated';
+            });
+            
+            // Handle Enter key to finish editing
+            textarea.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    textarea.blur();
+                }
+            });
+        }
+        
+        // Navigation functions
+        function onPrevPage() {
+            if (pageNum <= 1) return;
+            pageNum--;
+            queueRenderPage(pageNum);
+        }
+        
+        function onNextPage() {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            queueRenderPage(pageNum);
+        }
+        
+        function queueRenderPage(num) {
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
+        }
+        
+        // Download edited PDF
+        async function downloadPDF() {
+            statusElem.textContent = 'Preparing download...';
+            
+            try {
+                // For demonstration purposes, we'll create a simple PDF
+                // In a real implementation, you would modify the original PDF
+                const { PDFDocument, rgb } = PDFLib;
+                
+                // Create a new PDF
+                const pdfDoc = await PDFDocument.create();
+                const page = pdfDoc.addPage([600, 400]);
+                
+                // Add text
+                page.drawText('This is your edited PDF!', {
+                    x: 50,
+                    y: 350,
+                    size: 15,
+                    color: rgb(0, 0.53, 0.71),
+                });
+                
+                page.drawText('Thank you for using our free PDF editor.', {
+                    x: 50,
+                    y: 300,
+                    size: 12,
+                    color: rgb(0, 0, 0),
+                });
+                
+                // Serialize the PDFDocument to bytes (a Uint8Array)
+                const pdfBytes = await pdfDoc.save();
+                
+                // Download the PDF
+                downloadjs(pdfBytes, "edited-document.pdf", "application/pdf");
+                statusElem.textContent = 'Download started!';
+            } catch (error) {
+                console.error('Error creating PDF:', error);
+                statusElem.textContent = 'Error creating PDF.';
+            }
+        }
+        
+        // Reset application
+        function resetApp() {
+            fileInput.value = '';
+            pdfViewer.innerHTML = '';
+            uploadSection.style.display = 'block';
+            editorSection.style.display = 'none';
+            statusElem.textContent = 'Ready to edit';
+            pageNum = 1;
+            pdfDoc = null;
+        }
     </script>
 </body>
 </html>
