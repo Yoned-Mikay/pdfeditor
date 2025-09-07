@@ -6,6 +6,8 @@
     <title>Free PDF Editor</title>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/downloadjs@1.4.7"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js"></script>
     <style>
         :root {
             --primary: #4361ee;
@@ -203,6 +205,8 @@
             padding: 20px;
             background: var(--light);
             border-radius: 10px;
+            overflow: auto;
+            max-height: 70vh;
         }
         
         #pdf-canvas {
@@ -312,6 +316,34 @@
             margin-bottom: 15px;
         }
         
+        .text-edit-overlay {
+            position: absolute;
+            border: 1px dashed var(--primary);
+            background: rgba(67, 97, 238, 0.1);
+            padding: 5px;
+            cursor: move;
+            resize: both;
+            overflow: auto;
+            min-width: 50px;
+            min-height: 20px;
+        }
+        
+        .text-edit-input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            font-size: inherit;
+            font-family: inherit;
+            color: inherit;
+            outline: none;
+        }
+        
+        .canvas-container {
+            position: relative;
+            display: inline-block;
+        }
+        
         @media (max-width: 992px) {
             .main-content {
                 flex-direction: column;
@@ -398,11 +430,13 @@
                 <div class="pdf-preview">
                     <div class="page-controls">
                         <button class="btn btn-outline" id="prev-page">Previous</button>
-                        <span>Page <span id="page-num">1</span> of <span id="page-count">1</span></span>
+                        <span>Page <span id="page-num">1</span> of <span id="page-count">0</span></span>
                         <button class="btn btn-outline" id="next-page">Next</button>
                     </div>
                     
-                    <canvas id="pdf-canvas"></canvas>
+                    <div class="canvas-container" id="canvas-container">
+                        <canvas id="pdf-canvas"></canvas>
+                    </div>
                 </div>
                 
                 <div class="properties-panel">
@@ -445,11 +479,14 @@
         
         <footer>
             <p>This is a free, open-source PDF editor. All processing happens in your browser - no data is sent to any server.</p>
-            <p>Powered by PDF-lib.js</p>
+            <p>Powered by PDF.js and PDF-lib.js</p>
         </footer>
     </div>
 
     <script>
+        // Set PDF.js worker path
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';
+        
         // DOM elements
         const dropArea = document.getElementById('drop-area');
         const fileInput = document.getElementById('file-input');
@@ -458,6 +495,7 @@
         const editorSection = document.getElementById('editor-section');
         const downloadSection = document.getElementById('download-section');
         const pdfCanvas = document.getElementById('pdf-canvas');
+        const canvasContainer = document.getElementById('canvas-container');
         const prevPageBtn = document.getElementById('prev-page');
         const nextPageBtn = document.getElementById('next-page');
         const pageNumElem = document.getElementById('page-num');
@@ -469,8 +507,12 @@
         // PDF variables
         let pdfDoc = null;
         let currentPage = 1;
+        let pageRendering = false;
+        let pageNumPending = null;
+        let scale = 1.5;
         let pdfBytes = null;
         let pdfDocLib = null;
+        let textAreas = [];
         
         // Event listeners
         browseBtn.addEventListener('click', () => fileInput.click());
@@ -531,18 +573,26 @@
                 pdfBytes = new Uint8Array(event.target.result);
                 
                 try {
-                    // Load PDF with pdf-lib
+                    // Load PDF with pdf.js for rendering
+                    pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+                    
+                    // Load PDF with pdf-lib for editing
                     pdfDocLib = await PDFLib.PDFDocument.load(pdfBytes);
                     
                     // Extract metadata
-                    const metadata = pdfDocLib.getSubject() || {};
-                    document.getElementById('doc-title').value = pdfDocLib.getTitle() || '';
-                    document.getElementById('doc-author').value = pdfDocLib.getAuthor() || '';
-                    document.getElementById('doc-subject').value = pdfDocLib.getSubject() || '';
-                    document.getElementById('doc-keywords').value = pdfDocLib.getKeywords() || '';
+                    const metadata = await pdfDoc.getMetadata();
+                    if (metadata.info) {
+                        document.getElementById('doc-title').value = metadata.info.Title || '';
+                        document.getElementById('doc-author').value = metadata.info.Author || '';
+                        document.getElementById('doc-subject').value = metadata.info.Subject || '';
+                        document.getElementById('doc-keywords').value = metadata.info.Keywords || '';
+                    }
                     
-                    // Draw first page
-                    await drawPDFPage(pdfBytes, 1);
+                    // Update page count
+                    pageCountElem.textContent = pdfDoc.numPages;
+                    
+                    // Render first page
+                    await renderPage(currentPage);
                     
                     // Show editor and hide upload section
                     loading.style.display = 'none';
@@ -558,110 +608,200 @@
             reader.readAsArrayBuffer(file);
         }
         
-        // Draw PDF page
-        async function drawPDFPage(pdfData, pageNum) {
-            // For demonstration purposes, we're showing a placeholder
-            // In a real implementation, you would use PDF.js to render the PDF
-            const ctx = pdfCanvas.getContext('2d');
-            const width = 800;
-            const height = 1000;
+        // Render PDF page
+        async function renderPage(num) {
+            pageRendering = true;
             
-            pdfCanvas.width = width;
-            pdfCanvas.height = height;
+            // Get page
+            const page = await pdfDoc.getPage(num);
             
-            // Draw a placeholder PDF page
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, width, height);
+            // Prepare canvas
+            const viewport = page.getViewport({ scale: scale });
+            pdfCanvas.height = viewport.height;
+            pdfCanvas.width = viewport.width;
             
-            // Draw border
-            ctx.strokeStyle = '#4361ee';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(0, 0, width, height);
+            // Render PDF page
+            const renderContext = {
+                canvasContext: pdfCanvas.getContext('2d'),
+                viewport: viewport
+            };
             
-            // Draw some content
-            ctx.fillStyle = '#333';
-            ctx.font = '24px Arial';
-            ctx.fillText('PDF Preview - Page ' + pageNum, 50, 50);
+            const renderTask = page.render(renderContext);
             
-            ctx.fillStyle = '#666';
-            ctx.font = '16px Arial';
-            ctx.fillText('This is a demonstration of the PDF editor.', 50, 100);
+            // Wait for rendering to finish
+            await renderTask.promise;
             
-            // Draw some sample text lines
-            for (let i = 0; i < 20; i++) {
-                ctx.fillText('Sample text line ' + (i+1), 50, 150 + i*30);
-            }
+            // Clear existing text areas
+            clearTextAreas();
             
-            // Draw watermark
-            ctx.fillStyle = 'rgba(67, 97, 238, 0.1)';
-            ctx.font = '60px Arial';
-            ctx.rotate(-0.5);
-            ctx.fillText('PDF EDITOR', 100, 600);
-            ctx.rotate(0.5);
+            // Extract text content for editing
+            const textContent = await page.getTextContent();
+            
+            // Create editable text areas for each text item
+            createTextAreas(textContent, viewport);
+            
+            pageRendering = false;
+            pageNumElem.textContent = num;
+        }
+        
+        // Create editable text areas from text content
+        function createTextAreas(textContent, viewport) {
+            textContent.items.forEach((item) => {
+                const transform = PDFLib.identityMatrix;
+                const transformed = PDFLib.applyTransform(item.transform, transform);
+                
+                // Calculate position on the canvas
+                const x = transformed[4];
+                const y = viewport.height - transformed[5];
+                
+                // Create text edit overlay
+                const textArea = document.createElement('div');
+                textArea.className = 'text-edit-overlay';
+                textArea.style.left = x + 'px';
+                textArea.style.top = y + 'px';
+                textArea.style.fontSize = (item.height * 1.2) + 'px';
+                textArea.style.fontFamily = item.fontName;
+                
+                // Create input field
+                const input = document.createElement('textarea');
+                input.className = 'text-edit-input';
+                input.value = item.str;
+                input.style.color = 'rgba(0, 0, 0, 0.5)';
+                
+                textArea.appendChild(input);
+                canvasContainer.appendChild(textArea);
+                
+                // Store reference
+                textAreas.push({
+                    element: textArea,
+                    originalX: x,
+                    originalY: y,
+                    originalText: item.str,
+                    transform: item.transform
+                });
+            });
+        }
+        
+        // Clear all text areas
+        function clearTextAreas() {
+            textAreas.forEach(textArea => {
+                if (textArea.element.parentNode) {
+                    textArea.element.parentNode.removeChild(textArea.element);
+                }
+            });
+            textAreas = [];
         }
         
         // Navigate to previous page
         function onPrevPage() {
             if (currentPage <= 1) return;
             currentPage--;
-            drawPDFPage(pdfBytes, currentPage);
-            pageNumElem.textContent = currentPage;
+            queueRenderPage(currentPage);
         }
         
         // Navigate to next page
         function onNextPage() {
-            // In a real implementation, you would get the actual page count
-            if (currentPage >= 5) return;
+            if (currentPage >= pdfDoc.numPages) return;
             currentPage++;
-            drawPDFPage(pdfBytes, currentPage);
-            pageNumElem.textContent = currentPage;
+            queueRenderPage(currentPage);
+        }
+        
+        // Queue page rendering if another page is currently rendering
+        function queueRenderPage(num) {
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
         }
         
         // Add text box to PDF
         async function addTextBox() {
             if (!pdfDocLib) return;
             
-            const pages = pdfDocLib.getPages();
-            const firstPage = pages[0];
+            // Create a new text area at the center of the page
+            const textArea = document.createElement('div');
+            textArea.className = 'text-edit-overlay';
+            textArea.style.left = (pdfCanvas.width / 2 - 100) + 'px';
+            textArea.style.top = (pdfCanvas.height / 2) + 'px';
+            textArea.style.width = '200px';
+            textArea.style.height = '40px';
+            textArea.style.backgroundColor = 'rgba(67, 97, 238, 0.2)';
             
-            const font = await pdfDocLib.embedFont(PDFLib.StandardFonts.Helvetica);
-            const fontSize = parseInt(document.getElementById('font-size').value);
-            const fontColor = document.getElementById('text-color').value;
+            // Create input field
+            const input = document.createElement('textarea');
+            input.className = 'text-edit-input';
+            input.value = 'New Text';
+            input.style.color = document.getElementById('text-color').value;
+            input.style.fontSize = document.getElementById('font-size').value + 'px';
+            input.style.fontFamily = document.getElementById('font-family').value;
             
-            // Convert hex color to RGB
-            const r = parseInt(fontColor.slice(1, 3), 16) / 255;
-            const g = parseInt(fontColor.slice(3, 5), 16) / 255;
-            const b = parseInt(fontColor.slice(5, 7), 16) / 255;
+            textArea.appendChild(input);
+            canvasContainer.appendChild(textArea);
             
-            firstPage.drawText('New Text Box', {
-                x: 50,
-                y: 500,
-                size: fontSize,
-                font: font,
-                color: PDFLib.rgb(r, g, b),
+            // Store reference
+            textAreas.push({
+                element: textArea,
+                originalX: parseFloat(textArea.style.left),
+                originalY: parseFloat(textArea.style.top),
+                originalText: 'New Text',
+                isNew: true
             });
-            
-            // Update the PDF bytes
-            pdfBytes = await pdfDocLib.save();
-            
-            alert('Text box added! Click download to save your edited PDF.');
         }
         
         // Download edited PDF
         async function downloadPDF() {
             if (!pdfDocLib) return;
             
-            // Update metadata
-            pdfDocLib.setTitle(document.getElementById('doc-title').value);
-            pdfDocLib.setAuthor(document.getElementById('doc-author').value);
-            pdfDocLib.setSubject(document.getElementById('doc-subject').value);
-            pdfDocLib.setKeywords(document.getElementById('doc-keywords').value);
+            loading.style.display = 'block';
             
-            // Save the modified PDF
-            const updatedPdfBytes = await pdfDocLib.save();
-            
-            // Download the PDF
-            download(updatedPdfBytes, "edited_document.pdf", "application/pdf");
+            try {
+                // Update metadata
+                pdfDocLib.setTitle(document.getElementById('doc-title').value);
+                pdfDocLib.setAuthor(document.getElementById('doc-author').value);
+                pdfDocLib.setSubject(document.getElementById('doc-subject').value);
+                pdfDocLib.setKeywords(document.getElementById('doc-keywords').value);
+                
+                // Get the first page
+                const pages = pdfDocLib.getPages();
+                const firstPage = pages[0];
+                
+                // Embed the font
+                const font = await pdfDocLib.embedFont(PDFLib.StandardFonts.Helvetica);
+                
+                // Process text areas
+                for (const textArea of textAreas) {
+                    const input = textArea.element.querySelector('.text-edit-input');
+                    const text = input.value;
+                    const color = input.style.color || '#000000';
+                    
+                    // Convert hex color to RGB
+                    const r = parseInt(color.slice(1, 3), 16) / 255;
+                    const g = parseInt(color.slice(3, 5), 16) / 255;
+                    const b = parseInt(color.slice(5, 7), 16) / 255;
+                    
+                    // Draw text on the PDF
+                    firstPage.drawText(text, {
+                        x: textArea.originalX,
+                        y: pdfCanvas.height - textArea.originalY,
+                        size: parseInt(document.getElementById('font-size').value),
+                        font: font,
+                        color: PDFLib.rgb(r, g, b),
+                    });
+                }
+                
+                // Save the modified PDF
+                const updatedPdfBytes = await pdfDocLib.save();
+                
+                // Download the PDF
+                download(updatedPdfBytes, "edited_document.pdf", "application/pdf");
+                
+                loading.style.display = 'none';
+            } catch (error) {
+                console.error('Error saving PDF:', error);
+                alert('Error saving PDF. Please try again.');
+                loading.style.display = 'none';
+            }
         }
         
         // Reset editor
@@ -669,9 +809,10 @@
             if (confirm('Are you sure you want to reset all changes?')) {
                 // Reload the original PDF
                 if (pdfBytes) {
+                    clearTextAreas();
                     PDFLib.PDFDocument.load(pdfBytes).then(doc => {
                         pdfDocLib = doc;
-                        drawPDFPage(pdfBytes, currentPage);
+                        renderPage(currentPage);
                     });
                 }
             }
@@ -679,9 +820,6 @@
         
         // Initialization
         document.addEventListener('DOMContentLoaded', function() {
-            // Set page count to 5 for demonstration (would be actual page count in real implementation)
-            pageCountElem.textContent = 5;
-            
             // Check if the browser supports the required APIs
             if (!window.File || !window.FileReader || !window.FileList || !window.Blob) {
                 alert('The File APIs are not fully supported in this browser. Please use a modern browser.');
