@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced PDF Editor</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/downloadjs@1.4.7"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js"></script>
     <style>
         :root {
             --primary: #4361ee;
@@ -387,7 +387,7 @@
     <div class="container">
         <header>
             <h1>Advanced PDF Editor</h1>
-            <p class="subtitle">Edit your PDFs with perfect formatting preservation</p>
+            <p class="subtitle">Direct PDF Editing with Perfect Formatting Preservation</p>
         </header>
         
         <div class="tagline">
@@ -538,6 +538,7 @@
         let pdfDocLib = null;
         let textElements = [];
         let scale = 1.0;
+        let textContentData = [];
         
         // Event listeners
         browseBtn.addEventListener('click', () => fileInput.click());
@@ -616,6 +617,9 @@
                     // Update page count
                     pageCountElem.textContent = pdfDoc.numPages;
                     
+                    // Extract text content from all pages
+                    await extractAllTextContent();
+                    
                     // Render first page
                     await renderPage(currentPage);
                     
@@ -636,6 +640,16 @@
             };
             
             reader.readAsArrayBuffer(file);
+        }
+        
+        // Extract text content from all pages
+        async function extractAllTextContent() {
+            textContentData = [];
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+                const page = await pdfDoc.getPage(i);
+                const textContent = await page.getTextContent();
+                textContentData.push(textContent);
+            }
         }
         
         // Render PDF page
@@ -676,11 +690,8 @@
                 // Wait for rendering to finish
                 await renderTask.promise;
                 
-                // Extract text content for editing
-                const textContent = await page.getTextContent();
-                
                 // Create editable text elements for each text item
-                createTextElements(textContent, viewport, pageDiv);
+                createTextElements(textContentData[num - 1], viewport, pageDiv);
                 
                 // Add page to viewer
                 pdfViewer.appendChild(pageDiv);
@@ -711,39 +722,38 @@
                 const textElement = document.createElement('div');
                 textElement.className = 'text-element';
                 textElement.style.left = tx + 'px';
-                textElement.style.top = (ty - item.height) + 'px'; // Adjust for text height
+                textElement.style.top = (ty - item.height) + 'px';
                 textElement.style.fontSize = item.height + 'px';
                 textElement.style.fontFamily = item.fontName;
                 textElement.style.color = 'rgba(0, 0, 0, 0.8)';
                 textElement.textContent = item.str;
                 
+                // Store original data for PDF editing
+                textElement.dataset.originalX = tx;
+                textElement.dataset.originalY = viewport.height - ty;
+                textElement.dataset.fontSize = item.height;
+                textElement.dataset.fontName = item.fontName;
+                
                 // Add click event for editing
                 textElement.addEventListener('dblclick', function() {
-                    startEditingText(textElement, item);
+                    startEditingText(textElement);
                 });
                 
                 pageDiv.appendChild(textElement);
                 
                 // Store reference
-                textElements.push({
-                    element: textElement,
-                    originalX: tx,
-                    originalY: ty,
-                    originalText: item.str,
-                    fontSize: item.height,
-                    fontName: item.fontName
-                });
+                textElements.push(textElement);
             });
         }
         
         // Start editing a text element
-        function startEditingText(textElement, item) {
+        function startEditingText(textElement) {
             // Create input field
             const input = document.createElement('input');
             input.type = 'text';
             input.value = textElement.textContent;
-            input.style.fontSize = item.height + 'px';
-            input.style.fontFamily = item.fontName;
+            input.style.fontSize = textElement.dataset.fontSize + 'px';
+            input.style.fontFamily = textElement.dataset.fontName;
             input.style.color = 'rgba(0, 0, 0, 1)';
             input.style.width = '100%';
             
@@ -766,7 +776,7 @@
                     e.preventDefault();
                     finishEditingText(textElement, input.value);
                 } else if (e.key === 'Escape') {
-                    finishEditingText(textElement, textElement.dataset.originalText);
+                    finishEditingText(textElement, textElement.dataset.originalText || input.value);
                 }
             });
         }
@@ -775,12 +785,7 @@
         function finishEditingText(textElement, newText) {
             textElement.textContent = newText;
             textElement.classList.remove('editing');
-            
-            // Update the stored text
-            const textElementData = textElements.find(te => te.element === textElement);
-            if (textElementData) {
-                textElementData.originalText = newText;
-            }
+            textElement.dataset.modified = "true";
         }
         
         // Navigate to previous page
@@ -825,27 +830,20 @@
             textElement.style.fontFamily = document.getElementById('font-family').value;
             textElement.style.color = document.getElementById('text-color').value;
             textElement.textContent = 'New Text';
+            textElement.dataset.isNew = "true";
+            textElement.dataset.fontSize = document.getElementById('font-size').value;
+            textElement.dataset.fontName = document.getElementById('font-family').value;
+            textElement.dataset.color = document.getElementById('text-color').value;
             
             // Add click event for editing
             textElement.addEventListener('dblclick', function() {
-                startEditingText(textElement, {
-                    height: parseInt(document.getElementById('font-size').value),
-                    fontName: document.getElementById('font-family').value
-                });
+                startEditingText(textElement);
             });
             
             pageDiv.appendChild(textElement);
             
             // Store reference
-            textElements.push({
-                element: textElement,
-                originalX: parseInt(textElement.style.left),
-                originalY: parseInt(textElement.style.top),
-                originalText: 'New Text',
-                isNew: true,
-                fontSize: parseInt(document.getElementById('font-size').value),
-                fontName: document.getElementById('font-family').value
-            });
+            textElements.push(textElement);
         }
         
         // Download edited PDF
@@ -855,7 +853,7 @@
             loading.style.display = 'block';
             
             try {
-                // Update metadata - fix keywords format
+                // Update metadata
                 pdfDocLib.setTitle(document.getElementById('doc-title').value);
                 pdfDocLib.setAuthor(document.getElementById('doc-author').value);
                 pdfDocLib.setSubject(document.getElementById('doc-subject').value);
@@ -867,25 +865,61 @@
                     pdfDocLib.setKeywords(keywordsArray);
                 }
                 
-                // Get the first page
-                const pages = pdfDocLib.getPages();
-                const firstPage = pages[0];
-                
-                // Embed the font (using standard font to avoid encoding issues)
-                const font = await pdfDocLib.embedFont(PDFLib.StandardFonts.Helvetica);
-                
-                // Process text elements
-                for (const textElement of textElements) {
-                    const text = textElement.element.textContent;
+                // Process each page
+                for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                    const page = pdfDocLib.getPages()[pageNum - 1];
                     
-                    // Draw text on the PDF
-                    firstPage.drawText(text, {
-                        x: textElement.originalX,
-                        y: textElement.originalY,
-                        size: textElement.fontSize || 12,
-                        font: font,
-                        color: PDFLib.rgb(0, 0, 0), // Default to black
+                    // Remove existing text (this is a simplified approach)
+                    // In a real implementation, you would need to properly identify and remove text elements
+                    
+                    // Add modified text elements
+                    const pageElements = textElements.filter(el => {
+                        const pageDiv = pdfViewer.querySelector('.pdf-page');
+                        return pageDiv && pageDiv.contains(el);
                     });
+                    
+                    for (const textElement of pageElements) {
+                        if (textElement.dataset.modified === "true" || textElement.dataset.isNew === "true") {
+                            const text = textElement.textContent;
+                            const x = parseFloat(textElement.style.left);
+                            const y = parseFloat(textElement.style.top);
+                            const fontSize = parseFloat(textElement.dataset.fontSize);
+                            const fontName = textElement.dataset.fontName;
+                            
+                            // Get the appropriate font
+                            let font;
+                            switch (fontName) {
+                                case 'Times-Roman':
+                                    font = await pdfDocLib.embedFont(PDFLib.StandardFonts.TimesRoman);
+                                    break;
+                                case 'Courier':
+                                    font = await pdfDocLib.embedFont(PDFLib.StandardFonts.Courier);
+                                    break;
+                                default:
+                                    font = await pdfDocLib.embedFont(PDFLib.StandardFonts.Helvetica);
+                            }
+                            
+                            // Parse color
+                            let color = { r: 0, g: 0, b: 0 };
+                            if (textElement.dataset.color) {
+                                const hex = textElement.dataset.color;
+                                color = {
+                                    r: parseInt(hex.slice(1, 3), 16) / 255,
+                                    g: parseInt(hex.slice(3, 5), 16) / 255,
+                                    b: parseInt(hex.slice(5, 7), 16) / 255
+                                };
+                            }
+                            
+                            // Draw text on the PDF
+                            page.drawText(text, {
+                                x: x,
+                                y: parseFloat(textElement.dataset.originalY) || (page.getHeight() - y - fontSize),
+                                size: fontSize,
+                                font: font,
+                                color: PDFLib.rgb(color.r, color.g, color.b),
+                            });
+                        }
+                    }
                 }
                 
                 // Save the modified PDF
