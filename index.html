@@ -322,10 +322,10 @@
             background: rgba(67, 97, 238, 0.1);
             padding: 5px;
             cursor: move;
-            resize: both;
-            overflow: auto;
+            overflow: hidden;
             min-width: 50px;
             min-height: 20px;
+            z-index: 10;
         }
         
         .text-edit-input {
@@ -337,6 +337,7 @@
             font-family: inherit;
             color: inherit;
             outline: none;
+            resize: none;
         }
         
         .canvas-container {
@@ -458,7 +459,7 @@
                         </div>
                         
                         <div class="property-group">
-                            <label for="doc-keywords">Keywords:</label>
+                            <label for="doc-keywords">Keywords (comma separated):</label>
                             <input type="text" id="doc-keywords" class="form-control">
                         </div>
                     </div>
@@ -513,6 +514,9 @@
         let pdfBytes = null;
         let pdfDocLib = null;
         let textAreas = [];
+        let isDragging = false;
+        let dragTarget = null;
+        let startX, startY, startLeft, startTop;
         
         // Event listeners
         browseBtn.addEventListener('click', () => fileInput.click());
@@ -667,26 +671,37 @@
                 // Calculate position on the canvas
                 // PDF.js provides transform matrix, we need to extract x and y
                 const tx = item.transform[4];
-                const ty = item.transform[5];
+                const ty = viewport.height - item.transform[5];
+                
+                // Estimate width and height based on text metrics
+                const fontSize = Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]);
+                const textWidth = item.str.length * fontSize * 0.5;
+                const textHeight = fontSize * 1.2;
                 
                 // Create text edit overlay
                 const textArea = document.createElement('div');
                 textArea.className = 'text-edit-overlay';
                 textArea.style.left = tx + 'px';
-                textArea.style.top = (viewport.height - ty) + 'px';
-                textArea.style.width = (item.width * 1.2) + 'px';
-                textArea.style.height = (item.height * 1.5) + 'px';
+                textArea.style.top = ty + 'px';
+                textArea.style.width = textWidth + 'px';
+                textArea.style.height = textHeight + 'px';
                 
                 // Create input field
                 const input = document.createElement('textarea');
                 input.className = 'text-edit-input';
                 input.value = item.str;
                 input.style.color = 'rgba(0, 0, 0, 0.7)';
-                input.style.fontSize = (item.height * 1.2) + 'px';
+                input.style.fontSize = fontSize + 'px';
                 input.style.fontFamily = item.fontName;
+                input.addEventListener('dblclick', function(e) {
+                    e.stopPropagation();
+                });
                 
                 textArea.appendChild(input);
                 canvasContainer.appendChild(textArea);
+                
+                // Make text area draggable
+                makeDraggable(textArea);
                 
                 // Store reference
                 textAreas.push({
@@ -694,9 +709,52 @@
                     originalX: tx,
                     originalY: ty,
                     originalText: item.str,
-                    width: item.width,
-                    height: item.height
+                    width: textWidth,
+                    height: textHeight,
+                    fontSize: fontSize,
+                    fontName: item.fontName
                 });
+            });
+        }
+        
+        // Make elements draggable
+        function makeDraggable(element) {
+            element.addEventListener('mousedown', function(e) {
+                if (e.target.tagName === 'TEXTAREA') return;
+                
+                isDragging = true;
+                dragTarget = element;
+                startX = e.clientX;
+                startY = e.clientY;
+                startLeft = parseInt(element.style.left);
+                startTop = parseInt(element.style.top);
+                
+                element.style.cursor = 'grabbing';
+                element.style.zIndex = '100';
+                element.style.backgroundColor = 'rgba(67, 97, 238, 0.3)';
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging || !dragTarget) return;
+                
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                
+                dragTarget.style.left = (startLeft + dx) + 'px';
+                dragTarget.style.top = (startTop + dy) + 'px';
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isDragging && dragTarget) {
+                    dragTarget.style.cursor = 'move';
+                    dragTarget.style.zIndex = '10';
+                    dragTarget.style.backgroundColor = 'rgba(67, 97, 238, 0.1)';
+                }
+                
+                isDragging = false;
+                dragTarget = null;
             });
         }
         
@@ -753,9 +811,15 @@
             input.style.color = document.getElementById('text-color').value;
             input.style.fontSize = document.getElementById('font-size').value + 'px';
             input.style.fontFamily = document.getElementById('font-family').value;
+            input.addEventListener('dblclick', function(e) {
+                e.stopPropagation();
+            });
             
             textArea.appendChild(input);
             canvasContainer.appendChild(textArea);
+            
+            // Make text area draggable
+            makeDraggable(textArea);
             
             // Store reference
             textAreas.push({
@@ -763,7 +827,9 @@
                 originalX: parseFloat(textArea.style.left),
                 originalY: parseFloat(textArea.style.top),
                 originalText: 'New Text',
-                isNew: true
+                isNew: true,
+                fontSize: parseInt(document.getElementById('font-size').value),
+                fontName: document.getElementById('font-family').value
             });
         }
         
@@ -774,11 +840,17 @@
             loading.style.display = 'block';
             
             try {
-                // Update metadata
+                // Update metadata - fix keywords format
                 pdfDocLib.setTitle(document.getElementById('doc-title').value);
                 pdfDocLib.setAuthor(document.getElementById('doc-author').value);
                 pdfDocLib.setSubject(document.getElementById('doc-subject').value);
-                pdfDocLib.setKeywords(document.getElementById('doc-keywords').value);
+                
+                // Handle keywords properly (convert string to array)
+                const keywords = document.getElementById('doc-keywords').value;
+                if (keywords) {
+                    const keywordsArray = keywords.split(',').map(k => k.trim());
+                    pdfDocLib.setKeywords(keywordsArray);
+                }
                 
                 // Get the first page
                 const pages = pdfDocLib.getPages();
@@ -798,11 +870,15 @@
                     const g = parseInt(color.slice(3, 5), 16) / 255;
                     const b = parseInt(color.slice(5, 7), 16) / 255;
                     
+                    // Get position
+                    const x = parseInt(textArea.element.style.left);
+                    const y = pdfCanvas.height - parseInt(textArea.element.style.top);
+                    
                     // Draw text on the PDF
                     firstPage.drawText(text, {
-                        x: textArea.originalX,
-                        y: pdfCanvas.height - textArea.originalY,
-                        size: parseInt(document.getElementById('font-size').value),
+                        x: x,
+                        y: y,
+                        size: textArea.fontSize,
                         font: font,
                         color: PDFLib.rgb(r, g, b),
                     });
