@@ -539,6 +539,9 @@
         let textElements = [];
         let scale = 1.0;
         let textContentData = [];
+        let isDragging = false;
+        let dragTarget = null;
+        let startX, startY, startLeft, startTop;
         
         // Event listeners
         browseBtn.addEventListener('click', () => fileInput.click());
@@ -672,6 +675,7 @@
                 pageDiv.className = 'pdf-page';
                 pageDiv.style.width = viewport.width + 'px';
                 pageDiv.style.height = viewport.height + 'px';
+                pageDiv.style.position = 'relative';
                 
                 // Create canvas for PDF rendering
                 const canvas = document.createElement('canvas');
@@ -739,10 +743,54 @@
                     startEditingText(textElement);
                 });
                 
+                // Make text element draggable
+                makeDraggable(textElement);
+                
                 pageDiv.appendChild(textElement);
                 
                 // Store reference
                 textElements.push(textElement);
+            });
+        }
+        
+        // Make elements draggable
+        function makeDraggable(element) {
+            element.addEventListener('mousedown', function(e) {
+                if (e.target.tagName === 'INPUT') return;
+                
+                isDragging = true;
+                dragTarget = element;
+                startX = e.clientX;
+                startY = e.clientY;
+                startLeft = parseInt(element.style.left);
+                startTop = parseInt(element.style.top);
+                
+                element.style.cursor = 'grabbing';
+                element.style.zIndex = '100';
+                element.style.backgroundColor = 'rgba(67, 97, 238, 0.2)';
+                
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging || !dragTarget) return;
+                
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                
+                dragTarget.style.left = (startLeft + dx) + 'px';
+                dragTarget.style.top = (startTop + dy) + 'px';
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isDragging && dragTarget) {
+                    dragTarget.style.cursor = 'move';
+                    dragTarget.style.zIndex = '10';
+                    dragTarget.style.backgroundColor = 'rgba(67, 97, 238, 0.1)';
+                }
+                
+                isDragging = false;
+                dragTarget = null;
             });
         }
         
@@ -825,7 +873,7 @@
             textElement.style.top = (parseInt(pageDiv.style.height) / 2) + 'px';
             textElement.style.width = '200px';
             textElement.style.height = '40px';
-            textElement.style.backgroundColor = 'rgba(67, 97, 238, 0.1)';
+            textElement.style.backgroundColor = 'rgba(67, 97, 238, 0.2)';
             textElement.style.fontSize = document.getElementById('font-size').value + 'px';
             textElement.style.fontFamily = document.getElementById('font-family').value;
             textElement.style.color = document.getElementById('text-color').value;
@@ -839,6 +887,9 @@
             textElement.addEventListener('dblclick', function() {
                 startEditingText(textElement);
             });
+            
+            // Make text element draggable
+            makeDraggable(textElement);
             
             pageDiv.appendChild(textElement);
             
@@ -869,10 +920,7 @@
                 for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
                     const page = pdfDocLib.getPages()[pageNum - 1];
                     
-                    // Remove existing text (this is a simplified approach)
-                    // In a real implementation, you would need to properly identify and remove text elements
-                    
-                    // Add modified text elements
+                    // Get text elements for this page
                     const pageElements = textElements.filter(el => {
                         const pageDiv = pdfViewer.querySelector('.pdf-page');
                         return pageDiv && pageDiv.contains(el);
@@ -913,7 +961,7 @@
                             // Draw text on the PDF
                             page.drawText(text, {
                                 x: x,
-                                y: parseFloat(textElement.dataset.originalY) || (page.getHeight() - y - fontSize),
+                                y: page.getHeight() - y - fontSize,
                                 size: fontSize,
                                 font: font,
                                 color: PDFLib.rgb(color.r, color.g, color.b),
